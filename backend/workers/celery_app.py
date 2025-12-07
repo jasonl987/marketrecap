@@ -24,6 +24,7 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=3600,  # 1 hour max per task (for long podcasts)
     worker_prefetch_multiplier=1,  # Process one task at a time
+    worker_concurrency=2,  # Limit workers for Railway's memory constraints
 )
 
 # Scheduled tasks
