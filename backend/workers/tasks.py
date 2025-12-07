@@ -3,10 +3,13 @@ from datetime import datetime
 from typing import Optional
 
 from .celery_app import celery_app
-from models.database import SessionLocal
+from models.database import SessionLocal, engine, Base
 from models.schemas import (
     Source, Episode, User, Subscription, DailyDigestQueue, EpisodeStatus
 )
+
+# Create tables on worker startup
+Base.metadata.create_all(bind=engine)
 from services.poller import fetch_youtube_feed, fetch_podcast_feed, extract_youtube_channel_id
 from services.transcription import process_youtube_episode, process_podcast_episode, process_audio_file, NoCaptionsError, get_video_title
 from services.summarization import summarize_transcript, synthesize_digest
