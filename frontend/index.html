@@ -96,7 +96,7 @@
                     Copy
                 </button>
             </div>
-            <div id="summaryContent" class="prose prose-purple max-w-none text-gray-700 whitespace-pre-wrap"></div>
+            <div id="summaryContent" class="prose prose-purple max-w-none text-gray-700 leading-relaxed"></div>
         </div>
     </main>
 
@@ -201,11 +201,32 @@
 
                 hideAllSections();
                 resultTitle.textContent = data.title || 'Summary';
-                summaryContent.textContent = data.summary || 'No summary available';
+                rawSummaryText = data.summary || 'No summary available';
+                summaryContent.innerHTML = formatTelegramMarkdown(rawSummaryText);
                 resultSection.classList.remove('hidden');
             } catch (error) {
                 showError('Failed to fetch summary');
             }
+        }
+
+        function formatTelegramMarkdown(text) {
+            // Escape HTML first
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            
+            // Convert Telegram markdown to HTML
+            // Bold: *text* -> <strong>text</strong>
+            html = html.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+            
+            // Italic: _text_ -> <em>text</em>
+            html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+            
+            // Convert line breaks
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
         }
 
         function setLoading(loading) {
@@ -233,8 +254,10 @@
             errorSection.classList.remove('hidden');
         }
 
+        let rawSummaryText = '';  // Store original text for copying
+
         function copyToClipboard() {
-            navigator.clipboard.writeText(summaryContent.textContent);
+            navigator.clipboard.writeText(rawSummaryText);
             // Brief visual feedback
             const btn = event.target.closest('button');
             const originalText = btn.innerHTML;
