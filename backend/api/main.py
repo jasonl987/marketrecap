@@ -5,6 +5,11 @@ from fastapi.responses import FileResponse
 import os
 
 from api.routes import sources, users, episodes
+from models.database import engine, Base
+from models.schemas import *  # Import all models to register them
+
+# Create tables on startup
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Daily Knowledge Feed",
