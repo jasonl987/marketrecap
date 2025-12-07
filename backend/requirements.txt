@@ -1,0 +1,34 @@
+# Web Framework
+fastapi>=0.109.0
+uvicorn>=0.27.0
+python-multipart>=0.0.6
+
+# Database
+sqlalchemy>=2.0.25
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
+
+# Task Queue
+celery>=5.3.6
+redis>=5.0.1
+
+# Content Ingestion
+feedparser>=6.0.10
+yt-dlp>=2024.1.1
+youtube-transcript-api>=1.0.0
+
+# Transcription (using OpenAI API)
+openai>=1.10.0
+
+# LLM
+anthropic>=0.18.0
+
+# Delivery
+python-telegram-bot>=21.0
+resend>=0.7.0
+
+# Utils
+python-dotenv>=1.0.0
+httpx>=0.27.0
+pydantic>=2.5.3
+pydantic-settings>=2.1.0
