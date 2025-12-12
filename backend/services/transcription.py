@@ -281,23 +281,26 @@ def process_podcast_episode(audio_url: str) -> str:
     return transcript
 
 
-def download_x_spaces_audio(url: str, output_path: str) -> str:
+def download_x_spaces_audio(url: str, output_dir: str) -> str:
     """Download audio from X/Twitter Spaces using yt-dlp.
     
     Args:
         url: X Spaces URL
-        output_path: Path to save the audio file (without extension)
+        output_dir: Directory to save the audio file
         
     Returns:
         Path to the downloaded audio file
     """
-    output_template = output_path.replace(".mp3", "")
+    import glob
+    
+    output_template = os.path.join(output_dir, "spaces_audio.%(ext)s")
     result = subprocess.run([
         "yt-dlp",
         "-x",  # Extract audio
         "--audio-format", "mp3",
         "--audio-quality", "5",
-        "-o", f"{output_template}.%(ext)s",
+        "--postprocessor-args", "-ac 1 -ar 16000",  # Mono, 16kHz for Whisper
+        "-o", output_template,
         "--no-warnings",
         url
     ], capture_output=True, text=True)
@@ -308,7 +311,12 @@ def download_x_spaces_audio(url: str, output_path: str) -> str:
             raise ValueError("This X Space requires authentication. Please try a public Space.")
         raise ValueError(f"Failed to download X Space: {error_msg}")
     
-    return f"{output_template}.mp3"
+    # Find the downloaded file (extension might vary)
+    downloaded_files = glob.glob(os.path.join(output_dir, "spaces_audio.*"))
+    if not downloaded_files:
+        raise ValueError("Failed to download X Space: no audio file found")
+    
+    return downloaded_files[0]
 
 
 def process_x_spaces(url: str) -> str:
@@ -324,8 +332,8 @@ def process_x_spaces(url: str) -> str:
     print(f"[Transcription] Processing X Space: {spaces_id}")
     
     with tempfile.TemporaryDirectory() as tmpdir:
-        audio_path = os.path.join(tmpdir, "spaces_audio.mp3")
-        download_x_spaces_audio(url, audio_path)
+        audio_path = download_x_spaces_audio(url, tmpdir)
+        print(f"[Transcription] Downloaded audio to: {audio_path}")
         transcript = transcribe_audio(audio_path)
     
     return transcript
