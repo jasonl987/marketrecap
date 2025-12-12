@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.database import SessionLocal
 from models.schemas import User, Episode, EpisodeStatus, DailyDigestQueue
 from workers.tasks import process_episode_task
-from services.transcription import extract_youtube_video_id, check_captions_available, get_video_duration
+from services.transcription import extract_youtube_video_id, check_captions_available, get_video_duration, is_x_spaces_url
 
 load_dotenv()
 
@@ -68,11 +68,14 @@ def get_or_create_user(chat_id: str) -> User:
 from typing import Optional
 
 def extract_url(text: str) -> Optional[str]:
-    """Extract YouTube URL from message text."""
+    """Extract YouTube or X Spaces URL from message text."""
     patterns = [
+        # YouTube patterns
         r'(https?://(?:www\.)?youtube\.com/watch\?v=[a-zA-Z0-9_-]+)',
         r'(https?://youtu\.be/[a-zA-Z0-9_-]+)',
         r'(https?://(?:www\.)?youtube\.com/embed/[a-zA-Z0-9_-]+)',
+        # X/Twitter Spaces patterns
+        r'(https?://(?:www\.)?(?:twitter\.com|x\.com)/i/spaces/[a-zA-Z0-9]+)',
     ]
     for pattern in patterns:
         match = re.search(pattern, text)
@@ -81,16 +84,24 @@ def extract_url(text: str) -> Optional[str]:
     return None
 
 
-def normalize_youtube_url(url: str) -> str:
-    """Normalize YouTube URL to standard format."""
-    video_id = extract_youtube_video_id(url)
-    return f"https://youtube.com/watch?v={video_id}"
+def normalize_url(url: str) -> str:
+    """Normalize URL to standard format for deduplication."""
+    if is_x_spaces_url(url):
+        # Extract spaces ID and normalize
+        match = re.search(r'(?:twitter\.com|x\.com)/i/spaces/([a-zA-Z0-9]+)', url)
+        if match:
+            return f"https://x.com/i/spaces/{match.group(1)}"
+    else:
+        # YouTube URL
+        video_id = extract_youtube_video_id(url)
+        return f"https://youtube.com/watch?v={video_id}"
+    return url
 
 
 def get_url_hash(url: str) -> str:
     """Generate hash for URL deduplication."""
     import hashlib
-    normalized = normalize_youtube_url(url)
+    normalized = normalize_url(url)
     return hashlib.sha256(normalized.encode()).hexdigest()[:32]
 
 
@@ -102,19 +113,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_or_create_user(chat_id)
     
     welcome_message = """
-🎯 *Welcome to MarketRecap!*
+🎯 *Welcome to Punchlite!*
 
-I turn YouTube videos and podcasts into concise AI summaries.
+I turn YouTube videos and X Spaces into concise AI summaries.
 
 *How to use:*
-• Send me any YouTube link → I'll summarize it
+• Send me any YouTube or X Spaces link → I'll summarize it
 • Get key takeaways, main topics, and action items
 
 *Commands:*
 /help - Show all commands
 /settings - View your preferences
 
-Just paste a YouTube URL to get started! 🚀
+Just paste a URL to get started! 🚀
 """
     await update.message.reply_text(welcome_message, parse_mode="Markdown")
 
@@ -122,7 +133,7 @@ Just paste a YouTube URL to get started! 🚀
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     help_text = """
-📖 *MarketRecap Commands*
+📖 *Punchlite Commands*
 
 /start - Register & welcome message
 /help - Show this help
@@ -130,12 +141,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /history - View recent summaries
 
 *To get a summary:*
-Just send me any YouTube URL!
+Send me any YouTube or X Spaces URL!
 
-*Example:*
-`https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+*Examples:*
+`https://youtube.com/watch?v=...`
+`https://x.com/i/spaces/...`
 
-I'll fetch the transcript and generate a summary with:
+I'll generate a summary with:
 • Key takeaways
 • Main topics
 • Notable quotes
