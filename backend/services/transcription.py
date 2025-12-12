@@ -147,12 +147,12 @@ def download_podcast_audio(audio_url: str, output_path: str) -> str:
     return output_path
 
 
-def split_audio_file(audio_path: str, max_size_mb: int = 24) -> list[str]:
+def split_audio_file(audio_path: str, max_size_mb: int = 20) -> list[str]:
     """Split audio file into chunks under the size limit.
     
     Args:
         audio_path: Path to the audio file
-        max_size_mb: Maximum size per chunk in MB
+        max_size_mb: Maximum size per chunk in MB (default 20 to stay under Whisper's 25MB limit)
         
     Returns:
         List of paths to chunk files
@@ -163,8 +163,8 @@ def split_audio_file(audio_path: str, max_size_mb: int = 24) -> list[str]:
     if file_size <= max_size_bytes:
         return [audio_path]
     
-    # Calculate number of chunks needed
-    num_chunks = (file_size // max_size_bytes) + 1
+    # Calculate number of chunks needed (add 1 extra for safety margin)
+    num_chunks = (file_size // max_size_bytes) + 2
     
     # Get audio duration using ffprobe
     result = subprocess.run(
@@ -298,8 +298,8 @@ def download_x_spaces_audio(url: str, output_dir: str) -> str:
         "yt-dlp",
         "-x",  # Extract audio
         "--audio-format", "mp3",
-        "--audio-quality", "5",
-        "--postprocessor-args", "-ac 1 -ar 16000",  # Mono, 16kHz for Whisper
+        "--audio-quality", "9",  # Lower quality = smaller file
+        "--postprocessor-args", "-ac 1 -ar 16000 -b:a 32k",  # Mono, 16kHz, 32kbps for smaller files
         "-o", output_template,
         "--no-warnings",
         url
