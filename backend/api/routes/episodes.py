@@ -73,6 +73,21 @@ def submit_url(submission: EpisodeSubmit, db: Session = Depends(get_db)):
                 "episode_id": existing.id,
                 "status": existing.status.value
             }
+        elif existing.status == EpisodeStatus.FAILED:
+            # Retry failed episodes - reset status and reprocess
+            existing.status = EpisodeStatus.PENDING
+            existing.error_message = None
+            existing.url = normalize_url(submission.url)  # Update URL in case format changed
+            db.commit()
+            
+            # Queue for processing
+            process_episode_task.delay(existing.id)
+            
+            return {
+                "message": "Retrying failed episode",
+                "episode_id": existing.id,
+                "status": "pending"
+            }
         elif submission.user_id:
             # Queue for delivery when ready
             queue_item = DailyDigestQueue(
