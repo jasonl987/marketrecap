@@ -55,49 +55,6 @@ python -m bot.telegram_bot
 
 Visit http://localhost:8000/app for the web interface.
 
-## Deploy to Railway
-
-### 1. Create Railway Project
-
-1. Go to [railway.app](https://railway.app) and create a new project
-2. Connect your GitHub repository
-
-### 2. Add Redis
-
-1. In your Railway project, click "New"
-2. Select "Database" → "Redis"
-
-### 3. Configure Environment Variables
-
-In Railway dashboard, add these variables:
-
-```
-OPENAI_API_KEY=sk-...
-OPENROUTER_API_KEY=sk-or-...
-TELEGRAM_BOT_TOKEN=...
-DATABASE_URL=${{Postgres.DATABASE_URL}}  # If using Postgres
-REDIS_URL=${{Redis.REDIS_URL}}
-```
-
-### 4. Deploy Services
-
-Railway will automatically detect the Dockerfile and deploy. You'll need to create 3 services:
-
-**Service 1: Web (API + Frontend)**
-- Start command: `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
-
-**Service 2: Worker (Celery)**
-- Start command: `celery -A workers.celery_app worker --loglevel=info`
-
-**Service 3: Bot (Telegram)**
-- Start command: `python -m bot.telegram_bot`
-
-### 5. Set Up Domain
-
-1. Go to your web service settings
-2. Generate a Railway domain or add a custom domain
-3. Your app will be available at `https://your-domain.railway.app/app`
-
 ## API Endpoints
 
 - `POST /api/episodes/submit` - Submit a URL for processing
