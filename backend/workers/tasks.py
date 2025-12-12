@@ -11,7 +11,10 @@ from models.schemas import (
 # Create tables on worker startup
 Base.metadata.create_all(bind=engine)
 from services.poller import fetch_youtube_feed, fetch_podcast_feed, extract_youtube_channel_id
-from services.transcription import process_youtube_episode, process_podcast_episode, process_audio_file, NoCaptionsError, get_video_title
+from services.transcription import (
+    process_youtube_episode, process_podcast_episode, process_audio_file, 
+    process_x_spaces, is_x_spaces_url, NoCaptionsError, get_video_title
+)
 from services.summarization import summarize_transcript, synthesize_digest
 from services.delivery import send_telegram, send_email, markdown_to_html
 
@@ -46,6 +49,8 @@ def process_episode_task(self, episode_id: int):
             source_type = source.source_type
         elif "youtube.com" in episode.url or "youtu.be" in episode.url:
             source_type = "youtube"
+        elif is_x_spaces_url(episode.url):
+            source_type = "x_spaces"
         elif episode.audio_url:
             source_type = "podcast"
         else:
@@ -61,6 +66,15 @@ def process_episode_task(self, episode_id: int):
                     db.commit()
             
             transcript = process_youtube_episode(episode.url)
+        elif source_type == "x_spaces":
+            # X/Twitter Spaces - download and transcribe audio
+            if not episode.title:
+                title = get_video_title(episode.url)  # yt-dlp can get Spaces titles too
+                if title:
+                    episode.title = title
+                    db.commit()
+            
+            transcript = process_x_spaces(episode.url)
         else:
             # Podcast - use audio_url
             if not episode.audio_url:

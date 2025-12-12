@@ -12,6 +12,19 @@ load_dotenv()
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
+def is_x_spaces_url(url: str) -> bool:
+    """Check if URL is an X/Twitter Spaces URL."""
+    return bool(re.search(r'(twitter\.com|x\.com)/i/spaces/[a-zA-Z0-9]+', url))
+
+
+def extract_x_spaces_id(url: str) -> str:
+    """Extract Spaces ID from X/Twitter Spaces URL."""
+    match = re.search(r'(twitter\.com|x\.com)/i/spaces/([a-zA-Z0-9]+)', url)
+    if match:
+        return match.group(2)
+    raise ValueError(f"Could not extract Spaces ID from URL: {url}")
+
+
 def extract_youtube_video_id(url: str) -> str:
     """Extract video ID from various YouTube URL formats.
     
@@ -265,4 +278,54 @@ def process_podcast_episode(audio_url: str) -> str:
         audio_path = os.path.join(tmpdir, "audio.mp3")
         download_podcast_audio(audio_url, audio_path)
         transcript = transcribe_audio(audio_path)
+    return transcript
+
+
+def download_x_spaces_audio(url: str, output_path: str) -> str:
+    """Download audio from X/Twitter Spaces using yt-dlp.
+    
+    Args:
+        url: X Spaces URL
+        output_path: Path to save the audio file (without extension)
+        
+    Returns:
+        Path to the downloaded audio file
+    """
+    output_template = output_path.replace(".mp3", "")
+    result = subprocess.run([
+        "yt-dlp",
+        "-x",  # Extract audio
+        "--audio-format", "mp3",
+        "--audio-quality", "5",
+        "-o", f"{output_template}.%(ext)s",
+        "--no-warnings",
+        url
+    ], capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        error_msg = result.stderr or result.stdout
+        if "login" in error_msg.lower() or "cookie" in error_msg.lower():
+            raise ValueError("This X Space requires authentication. Please try a public Space.")
+        raise ValueError(f"Failed to download X Space: {error_msg}")
+    
+    return f"{output_template}.mp3"
+
+
+def process_x_spaces(url: str) -> str:
+    """Download and transcribe an X/Twitter Spaces recording.
+    
+    Args:
+        url: X Spaces URL
+        
+    Returns:
+        Transcribed text
+    """
+    spaces_id = extract_x_spaces_id(url)
+    print(f"[Transcription] Processing X Space: {spaces_id}")
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        audio_path = os.path.join(tmpdir, "spaces_audio.mp3")
+        download_x_spaces_audio(url, audio_path)
+        transcript = transcribe_audio(audio_path)
+    
     return transcript
