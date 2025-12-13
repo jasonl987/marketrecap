@@ -7,6 +7,7 @@ import hashlib
 from models.database import get_db
 from models.schemas import Episode, Source, EpisodeStatus, User, DailyDigestQueue
 from workers.tasks import process_episode_task, send_immediate_digest
+from services.transcription import is_x_spaces_url
 
 router = APIRouter()
 
@@ -39,6 +40,13 @@ def normalize_url(url: str) -> str:
         else:
             video_id = url
         return f"https://youtube.com/watch?v={video_id}"
+    
+    # X Spaces - normalize to x.com format
+    if is_x_spaces_url(url):
+        import re
+        match = re.search(r'(?:twitter\.com|x\.com)/i/spaces/([a-zA-Z0-9]+)', url)
+        if match:
+            return f"https://x.com/i/spaces/{match.group(1)}"
     
     # Strip query params for other URLs
     return url.split("?")[0]
@@ -106,10 +114,13 @@ def submit_url(submission: EpisodeSubmit, db: Session = Depends(get_db)):
     # Determine source type from URL
     if "youtube.com" in normalized_url or "youtu.be" in normalized_url:
         source_type = "youtube"
+    elif is_x_spaces_url(normalized_url):
+        source_type = "x_spaces"
     else:
         source_type = "podcast"
     
     # Create episode without a source (one-off)
+    # For X Spaces and YouTube, store URL in url field (not audio_url)
     episode = Episode(
         unique_id=url_hash,
         url=normalized_url,
