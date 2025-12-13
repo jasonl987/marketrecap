@@ -35,9 +35,14 @@ def process_episode_task(self, episode_id: int):
         if episode.status == EpisodeStatus.COMPLETED:
             return {"status": "already_completed"}
         
+        # Helper to update progress
+        def set_progress(msg: str):
+            episode.progress = msg
+            db.commit()
+        
         # Mark as processing
         episode.status = EpisodeStatus.PROCESSING
-        db.commit()
+        set_progress("Starting...")
         
         # Determine source type
         source = None
@@ -58,6 +63,7 @@ def process_episode_task(self, episode_id: int):
         
         # Transcribe based on source type
         if source_type == "youtube":
+            set_progress("Fetching video info...")
             # Fetch video title if not already set
             if not episode.title:
                 title = get_video_title(episode.url)
@@ -65,8 +71,10 @@ def process_episode_task(self, episode_id: int):
                     episode.title = title
                     db.commit()
             
+            set_progress("Getting transcript...")
             transcript = process_youtube_episode(episode.url)
         elif source_type == "x_spaces":
+            set_progress("Fetching Space info...")
             # X/Twitter Spaces - download and transcribe audio
             if not episode.title:
                 title = get_video_title(episode.url)  # yt-dlp can get Spaces titles too
@@ -74,8 +82,10 @@ def process_episode_task(self, episode_id: int):
                     episode.title = title
                     db.commit()
             
+            set_progress("Downloading audio (this may take a few minutes)...")
             transcript = process_x_spaces(episode.url)
         else:
+            set_progress("Downloading podcast audio...")
             # Podcast - use audio_url
             if not episode.audio_url:
                 raise ValueError("No audio URL for podcast episode")
@@ -84,9 +94,11 @@ def process_episode_task(self, episode_id: int):
         episode.transcript = transcript
         
         # Summarize
+        set_progress("Generating summary...")
         summary = summarize_transcript(transcript)
         episode.summary = summary
         episode.status = EpisodeStatus.COMPLETED
+        episode.progress = "Complete"
         episode.processed_at = datetime.utcnow()
         db.commit()
         

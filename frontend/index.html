@@ -179,7 +179,13 @@
                         await fetchAndShowSummary(episodeId);
                     } else if (data.status === 'failed') {
                         stopPolling();
-                        showError('Failed to process video. It may not have captions available.');
+                        const errorMsg = data.error_message || 'Failed to process. It may not have captions available.';
+                        showError(errorMsg);
+                    } else if (data.status === 'processing') {
+                        // Update progress message
+                        const title = data.title ? `"${data.title}"` : 'your content';
+                        const progress = data.progress || 'Processing...';
+                        showStatus(`Processing ${title}`, progress);
                     }
                 } catch (error) {
                     // Continue polling on network errors

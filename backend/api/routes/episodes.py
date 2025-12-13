@@ -178,7 +178,10 @@ def get_episode_status(episode_id: int, db: Session = Depends(get_db)):
     return {
         "episode_id": episode.id,
         "status": episode.status.value,
-        "has_summary": episode.summary is not None
+        "progress": episode.progress,
+        "title": episode.title,
+        "has_summary": episode.summary is not None,
+        "error_message": episode.error_message if episode.status == EpisodeStatus.FAILED else None
     }
 
 

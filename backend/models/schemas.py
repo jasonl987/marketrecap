@@ -41,6 +41,7 @@ class Episode(Base):
     transcript = Column(Text)
     summary = Column(Text)
     status = Column(Enum(EpisodeStatus), default=EpisodeStatus.PENDING)
+    progress = Column(String(100))  # Current processing step for user feedback
     error_message = Column(String(500))  # Error details if processing failed
     published_at = Column(DateTime)
     processed_at = Column(DateTime)
