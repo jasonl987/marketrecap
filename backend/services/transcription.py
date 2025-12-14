@@ -289,17 +289,15 @@ def download_x_spaces_audio(url: str, output_dir: str) -> str:
         output_dir: Directory to save the audio file
         
     Returns:
-        Path to the downloaded audio file
+        Path to the downloaded audio file (always mp3)
     """
     import glob
     
-    output_template = os.path.join(output_dir, "spaces_audio.%(ext)s")
+    # First download whatever format is available
+    output_template = os.path.join(output_dir, "spaces_raw.%(ext)s")
     result = subprocess.run([
         "yt-dlp",
         "-x",  # Extract audio
-        "--audio-format", "mp3",
-        "--audio-quality", "9",  # Lower quality = smaller file
-        "--postprocessor-args", "-ac 1 -ar 16000 -b:a 32k",  # Mono, 16kHz, 32kbps for smaller files
         "-o", output_template,
         "--no-warnings",
         url
@@ -311,12 +309,28 @@ def download_x_spaces_audio(url: str, output_dir: str) -> str:
             raise ValueError("This X Space requires authentication. Please try a public Space.")
         raise ValueError(f"Failed to download X Space: {error_msg}")
     
-    # Find the downloaded file (extension might vary)
-    downloaded_files = glob.glob(os.path.join(output_dir, "spaces_audio.*"))
+    # Find the downloaded file
+    downloaded_files = glob.glob(os.path.join(output_dir, "spaces_raw.*"))
     if not downloaded_files:
         raise ValueError("Failed to download X Space: no audio file found")
     
-    return downloaded_files[0]
+    raw_file = downloaded_files[0]
+    output_mp3 = os.path.join(output_dir, "spaces_audio.mp3")
+    
+    # Convert to mp3 with ffmpeg (Whisper-friendly format)
+    print(f"[Transcription] Converting {raw_file} to mp3...")
+    convert_result = subprocess.run([
+        "ffmpeg", "-y", "-i", raw_file,
+        "-ac", "1",  # Mono
+        "-ar", "16000",  # 16kHz sample rate
+        "-b:a", "32k",  # 32kbps bitrate
+        output_mp3
+    ], capture_output=True, text=True)
+    
+    if convert_result.returncode != 0:
+        raise ValueError(f"Failed to convert audio: {convert_result.stderr}")
+    
+    return output_mp3
 
 
 def process_x_spaces(url: str) -> str:
