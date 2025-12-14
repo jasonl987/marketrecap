@@ -146,7 +146,12 @@
                     body: JSON.stringify({ url })
                 });
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    throw new Error(`Server error (${response.status}). Please try again.`);
+                }
                 
                 if (!response.ok) {
                     throw new Error(data.detail || data.message || 'Failed to submit URL');
