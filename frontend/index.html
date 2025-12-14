@@ -146,11 +146,11 @@
                     body: JSON.stringify({ url })
                 });
 
-                if (!response.ok) {
-                    throw new Error('Failed to submit URL');
-                }
-
                 const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || data.message || 'Failed to submit URL');
+                }
                 currentEpisodeId = data.episode_id;
 
                 if (data.status === 'completed') {
