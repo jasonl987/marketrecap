@@ -223,7 +223,7 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db = SessionLocal()
     try:
         url_hash = get_url_hash(url)
-        normalized_url = normalize_youtube_url(url)
+        normalized_url = normalize_url(url)
         
         existing = db.query(Episode).filter(Episode.unique_id == url_hash).first()
         
