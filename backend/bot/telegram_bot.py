@@ -483,9 +483,9 @@ def main():
     app.add_handler(CommandHandler("settings", settings_command))
     app.add_handler(CommandHandler("history", history_command))
     
-    # URL handler - matches messages containing YouTube URLs
+    # URL handler - matches messages containing YouTube or X Spaces URLs
     app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r'(youtube\.com|youtu\.be)'),
+        filters.TEXT & filters.Regex(r'(youtube\.com|youtu\.be|x\.com/i/spaces|twitter\.com/i/spaces)'),
         handle_url
     ))
     
