@@ -210,8 +210,10 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = extract_url(text)
     if not url:
         await update.message.reply_text(
-            "I couldn't find a valid YouTube URL in your message. "
-            "Please send a link like:\n`https://www.youtube.com/watch?v=...`",
+            "I couldn't find a valid URL in your message. "
+            "Please send a link like:\n"
+            "`https://youtube.com/watch?v=...`\n"
+            "`https://x.com/i/spaces/...`",
             parse_mode="Markdown"
         )
         return
@@ -260,38 +262,48 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         db.close()
     
-    # Check if captions are available to estimate processing time
-    video_id = extract_youtube_video_id(normalized_url)
-    has_captions = check_captions_available(video_id)
-    
-    if has_captions:
+    # Send appropriate processing message based on content type
+    if is_x_spaces_url(normalized_url):
+        # X Spaces - always needs audio transcription
         await update.message.reply_text(
-            "🔄 *Processing your video...*\n\n"
-            "Captions found! This should take about 10-30 seconds.",
+            "🔄 *Processing X Space...*\n\n"
+            "Downloading and transcribing audio. "
+            "This may take several minutes depending on the length.",
             parse_mode="Markdown"
         )
     else:
-        # Get duration for time estimate
-        duration_secs = get_video_duration(normalized_url)
-        if duration_secs > 0:
-            # Estimate: ~1 min processing per 10 min of audio
-            est_minutes = max(1, duration_secs // 600 + 1)
-            duration_display = f"{duration_secs // 60} min" if duration_secs >= 60 else f"{duration_secs} sec"
+        # YouTube - check if captions are available
+        video_id = extract_youtube_video_id(normalized_url)
+        has_captions = check_captions_available(video_id)
+        
+        if has_captions:
             await update.message.reply_text(
-                f"🔄 *Processing your video...*\n\n"
-                f"No captions available, so I need to transcribe the audio.\n"
-                f"Video length: {duration_display}\n"
-                f"Estimated time: *{est_minutes}-{est_minutes + 2} minutes*\n\n"
-                f"I'll send the summary when it's ready!",
+                "🔄 *Processing your video...*\n\n"
+                "Captions found! This should take about 10-30 seconds.",
                 parse_mode="Markdown"
             )
         else:
-            await update.message.reply_text(
-                "🔄 *Processing your video...*\n\n"
-                "No captions available, so I need to transcribe the audio. "
-                "This may take several minutes for longer videos.",
-                parse_mode="Markdown"
-            )
+            # Get duration for time estimate
+            duration_secs = get_video_duration(normalized_url)
+            if duration_secs > 0:
+                # Estimate: ~1 min processing per 10 min of audio
+                est_minutes = max(1, duration_secs // 600 + 1)
+                duration_display = f"{duration_secs // 60} min" if duration_secs >= 60 else f"{duration_secs} sec"
+                await update.message.reply_text(
+                    f"🔄 *Processing your video...*\n\n"
+                    f"No captions available, so I need to transcribe the audio.\n"
+                    f"Video length: {duration_display}\n"
+                    f"Estimated time: *{est_minutes}-{est_minutes + 2} minutes*\n\n"
+                    f"I'll send the summary when it's ready!",
+                    parse_mode="Markdown"
+                )
+            else:
+                await update.message.reply_text(
+                    "🔄 *Processing your video...*\n\n"
+                    "No captions available, so I need to transcribe the audio. "
+                    "This may take several minutes for longer videos.",
+                    parse_mode="Markdown"
+                )
     
     # Queue the processing task
     process_episode_task.delay(episode_id)
