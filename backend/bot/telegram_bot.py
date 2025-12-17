@@ -317,7 +317,8 @@ async def poll_and_send_result(update: Update, context: ContextTypes.DEFAULT_TYP
     import asyncio
     
     db = SessionLocal()
-    max_attempts = 60  # 60 seconds max
+    max_attempts = 180  # 15 minutes max (180 * 5 seconds)
+    poll_interval = 5  # Check every 5 seconds
     
     try:
         for attempt in range(max_attempts):
@@ -339,18 +340,18 @@ async def poll_and_send_result(update: Update, context: ContextTypes.DEFAULT_TYP
                     )
                 else:
                     await update.message.reply_text(
-                        "❌ Sorry, I couldn't process this video. Please try again later."
+                        "❌ Sorry, I couldn't process this content. Please try again later."
                     )
                 return
             
             # Still processing - wait and check again
-            await asyncio.sleep(1)
+            await asyncio.sleep(poll_interval)
             db.expire_all()  # Refresh from DB
         
-        # Timeout
+        # Timeout after 15 minutes
         await update.message.reply_text(
             "⏰ Processing is taking longer than expected. "
-            "I'll send the summary when it's ready!"
+            "Send the link again later to check if it's ready!"
         )
     finally:
         db.close()
