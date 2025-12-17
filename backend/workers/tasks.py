@@ -83,7 +83,7 @@ def process_episode_task(self, episode_id: int):
                     db.commit()
             
             set_progress("Downloading audio (this may take a few minutes)...")
-            transcript = process_x_spaces(episode.url)
+            transcript = process_x_spaces(episode.url, progress_callback=set_progress)
         else:
             set_progress("Downloading podcast audio...")
             # Podcast - use audio_url

@@ -11,6 +11,33 @@ from services.transcription import is_x_spaces_url
 
 router = APIRouter()
 
+# Progress step to percentage mapping
+PROGRESS_PERCENTAGES = {
+    "Starting...": 5,
+    "Fetching video info...": 10,
+    "Fetching Space info...": 10,
+    "Getting transcript...": 30,
+    "Downloading audio (this may take a few minutes)...": 25,
+    "Downloading podcast audio...": 25,
+    "Transcribing audio...": 50,
+    "Transcribing chunk": 60,  # Partial match for "Transcribing chunk X/Y"
+    "Generating summary...": 85,
+    "Complete": 100,
+}
+
+def get_progress_percent(progress: str) -> int:
+    """Convert progress text to percentage."""
+    if not progress:
+        return 0
+    # Exact match first
+    if progress in PROGRESS_PERCENTAGES:
+        return PROGRESS_PERCENTAGES[progress]
+    # Partial match for dynamic messages like "Transcribing chunk 2/5"
+    for key, percent in PROGRESS_PERCENTAGES.items():
+        if key in progress:
+            return percent
+    return 0
+
 
 class EpisodeSubmit(BaseModel):
     """Submit a one-off URL for processing."""
@@ -175,10 +202,15 @@ def get_episode_status(episode_id: int, db: Session = Depends(get_db)):
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
     
+    progress_percent = get_progress_percent(episode.progress) if episode.progress else 0
+    if episode.status == EpisodeStatus.COMPLETED:
+        progress_percent = 100
+    
     return {
         "episode_id": episode.id,
         "status": episode.status.value,
         "progress": episode.progress,
+        "progress_percent": progress_percent,
         "title": episode.title,
         "has_summary": episode.summary is not None,
         "error_message": episode.error_message if episode.status == EpisodeStatus.FAILED else None

@@ -36,6 +36,37 @@ from services.transcription import extract_youtube_video_id, check_captions_avai
 
 load_dotenv()
 
+# Progress step to percentage mapping
+PROGRESS_PERCENTAGES = {
+    "Starting...": 5,
+    "Fetching video info...": 10,
+    "Fetching Space info...": 10,
+    "Getting transcript...": 30,
+    "Downloading audio (this may take a few minutes)...": 25,
+    "Downloading podcast audio...": 25,
+    "Transcribing audio...": 50,
+    "Transcribing chunk": 60,
+    "Generating summary...": 85,
+    "Complete": 100,
+}
+
+def get_progress_percent(progress: str) -> int:
+    """Convert progress text to percentage."""
+    if not progress:
+        return 0
+    if progress in PROGRESS_PERCENTAGES:
+        return PROGRESS_PERCENTAGES[progress]
+    for key, percent in PROGRESS_PERCENTAGES.items():
+        if key in progress:
+            return percent
+    return 0
+
+def make_progress_bar(percent: int, width: int = 10) -> str:
+    """Create a text-based progress bar."""
+    filled = int(width * percent / 100)
+    empty = width - filled
+    return f"[{'█' * filled}{'░' * empty}] {percent}%"
+
 # Configure logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -262,63 +293,31 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         db.close()
     
-    # Send appropriate processing message based on content type
-    if is_x_spaces_url(normalized_url):
-        # X Spaces - always needs audio transcription
-        await update.message.reply_text(
-            "🔄 *Processing X Space...*\n\n"
-            "Downloading and transcribing audio. "
-            "This may take several minutes depending on the length.",
-            parse_mode="Markdown"
-        )
-    else:
-        # YouTube - check if captions are available
-        video_id = extract_youtube_video_id(normalized_url)
-        has_captions = check_captions_available(video_id)
-        
-        if has_captions:
-            await update.message.reply_text(
-                "🔄 *Processing your video...*\n\n"
-                "Captions found! This should take about 10-30 seconds.",
-                parse_mode="Markdown"
-            )
-        else:
-            # Get duration for time estimate
-            duration_secs = get_video_duration(normalized_url)
-            if duration_secs > 0:
-                # Estimate: ~1 min processing per 10 min of audio
-                est_minutes = max(1, duration_secs // 600 + 1)
-                duration_display = f"{duration_secs // 60} min" if duration_secs >= 60 else f"{duration_secs} sec"
-                await update.message.reply_text(
-                    f"🔄 *Processing your video...*\n\n"
-                    f"No captions available, so I need to transcribe the audio.\n"
-                    f"Video length: {duration_display}\n"
-                    f"Estimated time: *{est_minutes}-{est_minutes + 2} minutes*\n\n"
-                    f"I'll send the summary when it's ready!",
-                    parse_mode="Markdown"
-                )
-            else:
-                await update.message.reply_text(
-                    "🔄 *Processing your video...*\n\n"
-                    "No captions available, so I need to transcribe the audio. "
-                    "This may take several minutes for longer videos.",
-                    parse_mode="Markdown"
-                )
+    # Send initial processing message (will be edited with progress)
+    content_type = "X Space" if is_x_spaces_url(normalized_url) else "video"
+    progress_bar = make_progress_bar(0)
+    status_message = await update.message.reply_text(
+        f"🔄 *Processing your {content_type}...*\n\n"
+        f"{progress_bar}\n"
+        f"Starting...",
+        parse_mode="Markdown"
+    )
     
     # Queue the processing task
     process_episode_task.delay(episode_id)
     
-    # Poll for completion and send result
-    await poll_and_send_result(update, context, episode_id)
+    # Poll for completion and send result (pass the message to edit)
+    await poll_and_send_result(update, context, episode_id, status_message)
 
 
-async def poll_and_send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, episode_id: int):
+async def poll_and_send_result(update: Update, context: ContextTypes.DEFAULT_TYPE, episode_id: int, status_message=None):
     """Poll for episode completion and send result."""
     import asyncio
     
     db = SessionLocal()
     max_attempts = 180  # 15 minutes max (180 * 5 seconds)
     poll_interval = 5  # Check every 5 seconds
+    last_progress = None
     
     try:
         for attempt in range(max_attempts):
@@ -326,6 +325,12 @@ async def poll_and_send_result(update: Update, context: ContextTypes.DEFAULT_TYP
             
             if episode.status == EpisodeStatus.COMPLETED:
                 db.close()
+                # Delete the progress message and send summary
+                if status_message:
+                    try:
+                        await status_message.delete()
+                    except:
+                        pass
                 await send_summary(update, episode)
                 return
             
@@ -342,17 +347,46 @@ async def poll_and_send_result(update: Update, context: ContextTypes.DEFAULT_TYP
                     await update.message.reply_text(
                         "❌ Sorry, I couldn't process this content. Please try again later."
                     )
+                # Delete progress message on failure
+                if status_message:
+                    try:
+                        await status_message.delete()
+                    except:
+                        pass
                 return
             
-            # Still processing - wait and check again
+            # Update progress message if changed
+            current_progress = episode.progress
+            if status_message and current_progress and current_progress != last_progress:
+                percent = get_progress_percent(current_progress)
+                progress_bar = make_progress_bar(percent)
+                try:
+                    await status_message.edit_text(
+                        f"🔄 *Processing...*\n\n"
+                        f"{progress_bar}\n"
+                        f"{current_progress}",
+                        parse_mode="Markdown"
+                    )
+                    last_progress = current_progress
+                except:
+                    pass  # Ignore edit errors (message unchanged, etc.)
+            
+            # Wait and check again
             await asyncio.sleep(poll_interval)
             db.expire_all()  # Refresh from DB
         
         # Timeout after 15 minutes
-        await update.message.reply_text(
-            "⏰ Processing is taking longer than expected. "
-            "Send the link again later to check if it's ready!"
-        )
+        if status_message:
+            try:
+                await status_message.edit_text(
+                    "⏰ Processing is taking longer than expected.\n"
+                    "Send the link again later to check if it's ready!"
+                )
+            except:
+                await update.message.reply_text(
+                    "⏰ Processing is taking longer than expected. "
+                    "Send the link again later to check if it's ready!"
+                )
     finally:
         db.close()
 

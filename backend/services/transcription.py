@@ -333,11 +333,12 @@ def download_x_spaces_audio(url: str, output_dir: str) -> str:
     return output_mp3
 
 
-def process_x_spaces(url: str) -> str:
+def process_x_spaces(url: str, progress_callback=None) -> str:
     """Download and transcribe an X/Twitter Spaces recording.
     
     Args:
         url: X Spaces URL
+        progress_callback: Optional callback function to report progress
         
     Returns:
         Transcribed text
@@ -348,6 +349,10 @@ def process_x_spaces(url: str) -> str:
     with tempfile.TemporaryDirectory() as tmpdir:
         audio_path = download_x_spaces_audio(url, tmpdir)
         print(f"[Transcription] Downloaded audio to: {audio_path}")
+        
+        if progress_callback:
+            progress_callback("Transcribing audio...")
+        
         transcript = transcribe_audio(audio_path)
     
     return transcript

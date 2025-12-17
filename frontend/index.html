@@ -67,13 +67,18 @@
 
         <!-- Status Section -->
         <div id="statusSection" class="hidden bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 mb-4">
                 <div class="loading-spinner"></div>
                 <div>
                     <p class="font-medium text-blue-800" id="statusTitle">Processing your video...</p>
                     <p class="text-sm text-blue-600" id="statusMessage">This usually takes 10-30 seconds</p>
                 </div>
             </div>
+            <!-- Progress Bar -->
+            <div class="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                <div id="progressBar" class="bg-purple-600 h-3 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+            </div>
+            <p class="text-xs text-blue-500 mt-2 text-right" id="progressPercent">0%</p>
         </div>
 
         <!-- Error Section -->
@@ -119,6 +124,8 @@
         const statusSection = document.getElementById('statusSection');
         const statusTitle = document.getElementById('statusTitle');
         const statusMessage = document.getElementById('statusMessage');
+        const progressBar = document.getElementById('progressBar');
+        const progressPercent = document.getElementById('progressPercent');
         const errorSection = document.getElementById('errorSection');
         const errorMessage = document.getElementById('errorMessage');
         const resultSection = document.getElementById('resultSection');
@@ -187,10 +194,11 @@
                         const errorMsg = data.error_message || 'Failed to process. It may not have captions available.';
                         showError(errorMsg);
                     } else if (data.status === 'processing') {
-                        // Update progress message
+                        // Update progress message and bar
                         const title = data.title ? `"${data.title}"` : 'your content';
                         const progress = data.progress || 'Processing...';
-                        showStatus(`Processing ${title}`, progress);
+                        const percent = data.progress_percent || 0;
+                        showStatus(`Processing ${title}`, progress, percent);
                     }
                 } catch (error) {
                     // Continue polling on network errors
@@ -252,10 +260,12 @@
             resultSection.classList.add('hidden');
         }
 
-        function showStatus(title, message) {
+        function showStatus(title, message, percent = 0) {
             hideAllSections();
             statusTitle.textContent = title;
             statusMessage.textContent = message;
+            progressBar.style.width = `${percent}%`;
+            progressPercent.textContent = `${percent}%`;
             statusSection.classList.remove('hidden');
         }
 
